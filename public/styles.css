@@ -1,0 +1,26 @@
+@font-face {
+  font-family: 'B Yekan';
+  src: url('/fonts/Vazir.woff2') format('woff2'); /* بدون /public */
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'B Yekan', sans-serif !important;
+  direction: rtl !important;
+  text-align: left;
+  font-weight: normal;
+}
+
+.root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}

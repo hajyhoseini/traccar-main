@@ -1,0 +1,11 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    container_name: traccar_frontend
+    restart: unless-stopped
+    environment:
+      - npm_package_version=6.8.1  # برای رفع هشدار Vite PWA (از package.json بردار)
