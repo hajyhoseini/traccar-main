@@ -45,7 +45,7 @@ const SummaryReportPage = () => {
   const devices = useSelector((state) => state.devices.items);
 
   const distanceUnit = useAttributePreference('distanceUnit');
-  const speedUnit = useAttributePreference('speedUnit');
+  const speedUnit = useAttributePreference('speedUnit'); // اینو نگه می‌داریم، ولی به km/h تنظیم می‌کنیم
   const volumeUnit = useAttributePreference('volumeUnit');
 
   const [columns, setColumns] = usePersistedState('summaryColumns', ['startTime', 'distance', 'averageSpeed']);
@@ -95,7 +95,7 @@ const SummaryReportPage = () => {
         return formatDistance(value, distanceUnit, t);
       case 'averageSpeed':
       case 'maxSpeed':
-        return value > 0 ? formatSpeed(value, speedUnit, t) : null;
+        return value > 0 ? formatSpeed(value * 1.852, 'km/h', t) : null; // تبدیل knots به km/h
       case 'engineHours':
       case 'startHours':
       case 'endHours':
@@ -192,8 +192,8 @@ const SummaryReportPage = () => {
           </div>
           <ColumnSelect columns={columns} setColumns={setColumns} columnsArray={columnsArray} />
         </ReportFilter>
- <Box sx={{ display: 'flex', gap: 2, ml: 2, justifyContent: 'flex-start' }}>
-            <Button
+        <Box sx={{ display: 'flex', gap: 2, ml: 2, justifyContent: 'flex-start' }}>
+          <Button
             variant="contained"
             color="primary"
             onClick={exportToExcel}

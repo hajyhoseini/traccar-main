@@ -1,22 +1,25 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
+import { Doughnut } from "react-chartjs-2";
 import {
   FaCar,
   FaPowerOff,
   FaTachometerAlt,
   FaExclamationTriangle,
-  FaClock,
 } from "react-icons/fa";
 
-const SummaryCards = ({ selectedGroup }) => {
+ChartJS.register(ArcElement, Tooltip, Legend);
+
+const SummaryCards = ({ selectedGroup, cardStyle }) => {
   const [stats, setStats] = useState({
     totalDevices: 0,
     activeDevices: 0,
     inactiveDevices: 0,
     noDataDevices: 0,
-    totalEngineHours: "00:00",
   });
 
-  const [animate, setAnimate] = useState(false); // State برای کنترل انیمیشن
+  const [animate, setAnimate] = useState(false);
+  const chartRef = useRef(null);
 
   useEffect(() => {
     if (!selectedGroup) {
@@ -26,9 +29,8 @@ const SummaryCards = ({ selectedGroup }) => {
         activeDevices: 0,
         inactiveDevices: 0,
         noDataDevices: 0,
-        totalEngineHours: "00:00",
       });
-      setAnimate(true); // فعال کردن انیمیشن برای حالت خالی
+      setAnimate(true);
       return;
     }
 
@@ -90,51 +92,11 @@ const SummaryCards = ({ selectedGroup }) => {
         const inactiveDevices =
           devicesWithStatus.filter((d) => d.status === "offline").length || 0;
 
-        const fromDate = new Date(now);
-        fromDate.setDate(now.getDate() - 30);
-        const fromStr = fromDate.toISOString();
-        const toStr = now.toISOString();
-        const summaryUrl = `/api/reports/summary?groupId=${selectedGroup}&from=${fromStr}&to=${toStr}`;
-        const summaryResponse = await fetch(summaryUrl, {
-          credentials: "include",
-          headers: {
-            Accept: "application/json",
-          },
-        });
-        if (!summaryResponse.ok) {
-          console.error(
-            "Summary fetch failed for engine hours:",
-            summaryResponse.status,
-            summaryResponse.statusText
-          );
-          throw new Error(`HTTP ${summaryResponse.status}`);
-        }
-        const summaryData = await summaryResponse.json();
-        console.log("Summary data for engine hours:", summaryData);
-
-        let totalEngineHoursMs = 0;
-        if (summaryData && summaryData.length > 0) {
-          totalEngineHoursMs = summaryData.reduce(
-            (sum, r) => sum + (r.engineHours || 0),
-            0
-          );
-        }
-
-        const totalHours = Math.floor(totalEngineHoursMs / (1000 * 60 * 60));
-        const totalMinutes = Math.floor(
-          (totalEngineHoursMs % (1000 * 60 * 60)) / (1000 * 60)
-        );
-        const formattedEngineHours = `${String(totalHours).padStart(
-          2,
-          "0"
-        )}:${String(totalMinutes).padStart(2, "0")}`;
-
         console.log("Calculated stats:", {
           totalDevices,
           activeDevices,
           inactiveDevices,
           noDataDevices,
-          totalEngineHours: formattedEngineHours,
         });
 
         setStats({
@@ -142,9 +104,8 @@ const SummaryCards = ({ selectedGroup }) => {
           activeDevices,
           inactiveDevices,
           noDataDevices,
-          totalEngineHours: formattedEngineHours,
         });
-        setAnimate(true); // فعال کردن انیمیشن هنگام تغییر داده‌ها
+        setAnimate(true);
       } catch (err) {
         console.error(
           "Error fetching statistics for group:",
@@ -156,50 +117,162 @@ const SummaryCards = ({ selectedGroup }) => {
           activeDevices: 0,
           inactiveDevices: 0,
           noDataDevices: 0,
-          totalEngineHours: "00:00",
         });
-        setAnimate(true); // فعال کردن انیمیشن برای حالت خطا
+        setAnimate(true);
       }
     };
 
     fetchStatistics();
 
-    // ریست انیمیشن بعد از ۱ ثانیه
     const timer = setTimeout(() => setAnimate(false), 1000);
     return () => clearTimeout(timer);
   }, [selectedGroup]);
 
+  // داده‌های نمودار با رنگ‌های گرم‌تر و پررنگ‌تر
+  const data = {
+    labels: ["متحرک با GPS روشن", "GPS های خاموش", "GPS فعال بدون دیتا"],
+    datasets: [
+      {
+        label: "تعداد دستگاه‌ها",
+        data: [stats.activeDevices, stats.inactiveDevices, stats.noDataDevices],
+        backgroundColor: [
+          "#4CAF50", // سبز گرم و پررنگ برای فعال
+          "#E53E3E", // قرمز گرم و پررنگ برای خاموش
+          "#F6AD55", // نارنجی گرم و پررنگ برای بدون دیتا
+        ],
+        borderColor: ["#4CAF50", "#E53E3E", "#F6AD55"],
+        borderWidth: 0,
+        hoverOffset: 6, // جداسازی کمتر در hover
+        hoverBorderWidth: 2, // border نازک‌تر در hover
+        hoverBorderColor: [
+          "#388E3C", // تیره‌تر برای فعال
+          "#C53030", // تیره‌تر برای خاموش
+          "#ED8936", // تیره‌تر برای بدون دیتا
+        ],
+      },
+    ],
+  };
+
+  // گزینه‌های نمودار
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    cutout: "60%",
+    plugins: {
+      legend: {
+        position: "bottom",
+        labels: {
+          usePointStyle: true,
+          padding: 10,
+          font: {
+            size: 12,
+            family: "'IranSans', sans-serif",
+            weight: "normal",
+          },
+          color: "#555",
+          generateLabels: (chart) => {
+            const { data } = chart;
+            return data.labels.map((label, i) => ({
+              text: `${label}: ${data.datasets[0].data[i]} عدد`,
+              fillStyle: data.datasets[0].backgroundColor[i],
+              strokeStyle: data.datasets[0].borderColor[i],
+              lineWidth: 1,
+              pointStyle: "circle",
+              fontColor: "#555",
+            }));
+          },
+        },
+      },
+      tooltip: {
+        backgroundColor: "rgba(0, 0, 0, 0.8)",
+        titleFont: { family: "'IranSans', sans-serif", size: 14 },
+        bodyFont: { family: "'IranSans', sans-serif", size: 12 },
+        cornerRadius: 8,
+        displayColors: true,
+        rtl: true,
+        callbacks: {
+          label: function (context) {
+            return `${context.label}: ${context.parsed} عدد`;
+          },
+        },
+      },
+    },
+    animation: {
+      animateRotate: true,
+      animateScale: true,
+      easing: "easeOutQuart",
+      duration: animate ? 1200 : 800,
+    },
+  };
+
+  // اگر مجموع دستگاه‌ها صفر باشه، پیام خالی نشون بده
+  if (stats.totalDevices === 0) {
+    return (
+      <div style={{ ...cardStyle, height: "100%", minHeight: "200px", maxHeight: "300px", overflow: "hidden", fontFamily: "IranSans, sans-serif" }}>
+        <div
+          style={{
+            textAlign: "center",
+            padding: "50px",
+            color: "#666",
+            fontFamily: "IranSans, sans-serif",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+        >
+          هیچ داده‌ای برای نمایش وجود ندارد.
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="summary-cards-container">
-      <div className={`summary-card  ${animate ? "update-animation" : ""}`}>
-        
-        <div className="card-label"><FaCar className="card-icon" />   تعداد کل دستگاه‌ها</div>
-        <div className="card-value">{stats.totalDevices} عدد</div>
+    <div
+      style={{
+        ...cardStyle,
+        display: "flex",
+        flexDirection: "column",
+        background: "#ebebebff",
+        fontFamily: "IranSans, sans-serif",
+        borderRadius: "20px",
+        padding: "10px",
+        margin: "0px",
+        height: "100%",
+        minHeight: "200px",
+        maxHeight: "300px",
+        overflow: "hidden",
+      }}
+    >
+      {/* عنوان بالای نمودار */}
+      <div
+        style={{
+          textAlign: "center",
+          padding: "10px 0",
+          flexShrink: 0,
+        }}
+      >
+        <h3
+          style={{
+            margin: 0,
+            fontSize: "16px",
+            color: "#2C3E50",
+            fontFamily: "IranSans, sans-serif",
+          }}
+        >
+          کل دستگاه‌ها: {stats.totalDevices} عدد
+        </h3>
       </div>
 
-      <div className={`summary-card ${animate ? "update-animation" : ""}`}>
-        
-        <div className="card-label"><FaTachometerAlt className="card-icon" />  تعداد متحرک  با GPS روشن   </div>
-        <div className="card-value">{stats.activeDevices} عدد</div>
-      </div>
-
-      <div className={`summary-card  ${animate ? "update-animation" : ""}`}>
-        
-        <div className="card-label"><FaPowerOff className="card-icon" />    تعداد GPS های خاموش   </div>
-        <div className="card-value">{stats.inactiveDevices} عدد</div>
-      </div>
-
-      <div className={`summary-card ${animate ? "update-animation" : ""}`}>
-        
-        <div className="card-label"><FaExclamationTriangle className="card-icon" />    تعداد  GPS فعال بدون دیتا    </div>
-        <div className="card-value">{stats.noDataDevices} عدد</div>
-      </div>
-
-      <div className={`summary-card ${animate ? "update-animation" : ""}`}>
-        
-        <div className="card-label"><FaClock className="card-icon" />   ساعات کار موتور در ۳۰ روز اخیر</div>
-        <div className="card-value">{stats.totalEngineHours} ساعت</div>
+      <div
+        style={{
+          position: "relative",
+          flex: 1,
+          width: "100%",
+          minHeight: 0,
+        }}
+      >
+        <Doughnut ref={chartRef} data={data} options={options} />
       </div>
     </div>
   );

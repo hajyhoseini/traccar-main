@@ -37,7 +37,7 @@ const AssistantPage = () => {
           }}
         >
           <iframe
-            src="http://192.168.1.108:3001/home"
+            src="http://192.168.100.23:3000/home"
             title="External Page"
             style={{
               width: '100%',

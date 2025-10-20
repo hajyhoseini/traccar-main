@@ -22,7 +22,11 @@ dayjs.extend(relativeTime);
 dayjs.extend(localizedFormat);
 dayjs.extend(jalaliday);
 
-dayjs.locale('fa');  // تنظیم زبان فارسی
+dayjs.locale('fa'); // تنظیم زبان فارسی
+
+// تابع برای تبدیل اعداد به فارسی
+const persianDigits = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
+const toPersianDigits = (num) => num.toString().replace(/\d/g, (d) => persianDigits[parseInt(d)]);
 
 export const formatBoolean = (value, t) => (value ? t('sharedYes') : t('sharedNo'));
 
@@ -83,9 +87,20 @@ export const formatSpeed = (value, unit, t) => `${speedFromKnots(value, unit).to
 export const formatVolume = (value, unit, t) => `${volumeFromLiters(value, unit).toFixed(2)} ${volumeUnitString(unit, t)}`;
 
 export const formatNumericHours = (value, t) => {
-  const hours = Math.floor(value / 3600000);
-  const minutes = Math.floor((value % 3600000) / 60000);
-  return `${hours} ${t('sharedHourAbbreviation')} ${minutes} ${t('sharedMinuteAbbreviation')}`;
+  if (!value || value <= 0) return '۰';
+
+  const hours = Math.floor(value / 3600000); // تبدیل میلی‌ثانیه به ساعت
+  const minutes = Math.floor((value % 3600000) / 60000); // باقی‌مانده به دقیقه
+
+  let result = '';
+  if (hours > 0) {
+    result += `${toPersianDigits(hours)} ${t('sharedHour') || 'ساعت'}`;
+  }
+  if (minutes > 0) {
+    if (hours > 0) result += ' و ';
+    result += `${toPersianDigits(minutes)} ${t('sharedMinute') || 'دقیقه'}`;
+  }
+  return result || '۰';
 };
 
 export const formatCoordinate = (key, value, unit) => {

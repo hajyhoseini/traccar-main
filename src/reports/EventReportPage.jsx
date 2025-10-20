@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   FormControl, InputLabel, Select, MenuItem, Table, TableHead, TableRow, TableCell, TableBody, Link, IconButton, Button, Box,
@@ -125,8 +125,12 @@ const EventReportPage = () => {
     switch (key) {
       case 'deviceId':
         return devices[value].name;
-      case 'eventTime':
-        return formatTime(value, 'seconds');
+      case 'eventTime': {
+        // کم کردن یک روز از تاریخ
+        const date = new Date(value);
+        date.setDate(date.getDate() - 1);
+        return formatTime(date, 'seconds');
+      }
       case 'type':
         return t(prefixString('event', value));
       case 'geofenceId':
@@ -278,8 +282,8 @@ const EventReportPage = () => {
               )}
               <ColumnSelect columns={columns} setColumns={setColumns} columnsArray={columnsArray} />
             </ReportFilter>
- <Box sx={{ display: 'flex', gap: 2, ml: 2, justifyContent: 'flex-start' }}>
-                <Button
+            <Box sx={{ display: 'flex', gap: 2, ml: 2, justifyContent: 'flex-start' }}>
+              <Button
                 variant="contained"
                 color="primary"
                 onClick={exportToExcel}

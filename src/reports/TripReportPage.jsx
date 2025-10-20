@@ -172,19 +172,19 @@ const TripReportPage = () => {
     try {
       const doc = new jsPDF();
 
-      // بارگذاری فونت Vazirmatn-Bold
+      // بارگذاری فونت Vazirmatn
       try {
-        const fontUrl = '/fonts/Vazirmatn-Bold.ttf';
+        const fontUrl = '/fonts/Vazirmatn-Regular.ttf';
         const fontResponse = await fetch(fontUrl);
         if (!fontResponse.ok) {
-          throw new Error('فونت Vazirmatn-Bold لود نشد');
+          throw new Error('فونت Vazirmatn لود نشد');
         }
         const fontData = await fontResponse.arrayBuffer();
         const fontBase64 = btoa(String.fromCharCode(...new Uint8Array(fontData)));
 
-        doc.addFileToVFS('Vazirmatn-Bold.ttf', fontBase64);
-        doc.addFont('Vazirmatn-Bold.ttf', 'Vazirmatn', 'bold');
-        doc.setFont('Vazirmatn', 'bold');
+        doc.addFileToVFS('Vazirmatn-Regular.ttf', fontBase64);
+        doc.addFont('Vazirmatn-Regular.ttf', 'Vazirmatn', 'normal');
+        doc.setFont('Vazirmatn', 'normal');
       } catch (fontError) {
         console.warn('خطا در لود فونت، استفاده از فونت پیش‌فرض:', fontError);
         doc.setFont('Helvetica', 'normal');
@@ -192,8 +192,9 @@ const TripReportPage = () => {
 
       doc.setFontSize(12);
 
-      // اضافه کردن عنوان گزارش
-      doc.text(t('reportTrips'), 14, 10);
+      // راست‌چین کردن عنوان گزارش
+      const pageWidth = doc.internal.pageSize.getWidth();
+      doc.text(t('reportTrips'), pageWidth - 14, 10, { align: 'right' });
 
       // آماده‌سازی داده‌های جدول
       const tableData = items.map((item) => {
@@ -205,12 +206,41 @@ const TripReportPage = () => {
         return row;
       });
 
-      // ایجاد جدول در PDF
+      // ایجاد جدول در PDF با تنظیمات RTL
       autoTable(doc, {
         head: [[t('sharedDevice'), ...columns.map((key) => t(columnsMap.get(key)))]],
         body: tableData,
-        styles: { font: doc.getFont().fontName, halign: 'right', fontStyle: 'bold' },
-        headStyles: { fillColor: [41, 128, 185] },
+        styles: {
+          font: doc.getFont().fontName,
+          halign: 'right', // هم‌ترازی راست برای متن
+          textColor: [0, 0, 0],
+          fontSize: 10,
+        },
+        headStyles: {
+          fillColor: [41, 128, 185],
+          textColor: [255, 255, 255],
+          fontStyle: 'normal',
+          halign: 'right', // هم‌ترازی راست برای سرستون‌ها
+        },
+        theme: 'grid',
+        direction: 'rtl', // تنظیم جهت راست‌به‌چپ
+        margin: { right: 14, left: 14 },
+        columnStyles: {
+          // تنظیم هم‌ترازی راست برای تمام ستون‌ها
+          0: { halign: 'right' },
+          1: { halign: 'right' },
+          2: { halign: 'right' },
+          3: { halign: 'right' },
+          4: { halign: 'right' },
+          5: { halign: 'right' },
+          6: { halign: 'right' },
+          7: { halign: 'right' },
+          8: { halign: 'right' },
+          9: { halign: 'right' },
+          10: { halign: 'right' },
+          11: { halign: 'right' },
+          12: { halign: 'right' },
+        },
       });
 
       doc.save('TripReport.pdf');
@@ -243,8 +273,8 @@ const TripReportPage = () => {
             <ReportFilter onShow={onShow} onExport={onExport} onSchedule={onSchedule} deviceType="multiple" loading={loading}>
               <ColumnSelect columns={columns} setColumns={setColumns} columnsArray={columnsArray} />
             </ReportFilter>
- <Box sx={{ display: 'flex', gap: 2, ml: 2, justifyContent: 'flex-start' }}>
-                <Button
+            <Box sx={{ display: 'flex', gap: 2, ml: 2, justifyContent: 'flex-start' }}>
+              <Button
                 variant="contained"
                 color="primary"
                 onClick={exportToExcel}

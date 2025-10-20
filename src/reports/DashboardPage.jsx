@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";  
+import React, { useState, useEffect } from "react";
 import PageLayout from "../common/components/PageLayout";
 import ReportsMenu from "./components/ReportsMenu";
 import useReportStyles from "./common/useReportStyles";
@@ -14,7 +14,7 @@ import RiskyBehaviorChart from "./components/RiskyBehaviorChart";
 import { Box } from "@mui/material";
 import GeofenceExitsStandaloneChart from "./components/GeofenceExitsStandaloneChart";
 import PersianClock from "./components/PersianClock";
-import SatellitesChart from "./components/SatellitesChart";
+import SatelliteGroupChart from "./components/SatelliteGroupChart";
 
 const DashboardPage = () => {
   const { classes } = useReportStyles();
@@ -30,7 +30,6 @@ const DashboardPage = () => {
     position: "relative",
     borderRadius: "23px",
     background: "#ebebebff",
-    boxShadow: "7px 7px 14px #aeaeaeff, -7px -7px 14px #fffcfcff",
     padding: "0px",
     display: "flex",
     flexDirection: "column",
@@ -39,7 +38,7 @@ const DashboardPage = () => {
     color: "#1b3148ff",
   };
 
-  // گرفتن لیست گروه‌ها با session cookie
+  // گرفتن لیست گروه‌ها
   useEffect(() => {
     fetch("/api/groups", {
       credentials: "include",
@@ -49,245 +48,283 @@ const DashboardPage = () => {
     })
       .then((res) => {
         if (!res.ok) {
-          console.error("Groups fetch failed:", res.status, res.statusText);
           throw new Error(`HTTP ${res.status}`);
         }
         return res.json();
       })
       .then((data) => {
-        console.log("Groups data:", data);
         setGroups(data);
-        console.log(data);
         if (data.length > 0) setSelectedGroup(data[0].id);
       })
       .catch((err) => console.error("Error fetching groups:", err));
   }, []);
 
   // گرفتن داده‌ها با aggregation برای گروه
-  useEffect(() => {
-    if (!selectedGroup) return;
-    const fetchSummaryData = async () => {
-      try {
-        const today = new Date();
-        const requests = [];
-        for (let i = 9; i >= 0; i--) {
-          const date = new Date(today);
-          date.setDate(today.getDate() - i);
-          const fromDate = new Date(date);
-          fromDate.setHours(20, 30, 0, 0); // 8:30 PM UTC
-          const toDate = new Date(date);
-          toDate.setDate(date.getDate() + 1);
-          toDate.setHours(20, 29, 59, 999); // 8:29:59.999 PM UTC next day
-          const fromStr = fromDate.toISOString();
-          const toStr = toDate.toISOString();
-          const url = `/api/reports/summary?groupId=${selectedGroup}&from=${fromStr}&to=${toStr}`;
-          requests.push(
-            fetch(url, {
-              credentials: "include",
-              headers: {
-                Accept: "application/json",
-              },
-            }).then((res) => {
-              if (!res.ok) {
-                console.error(
-                  `Summary fetch failed for ${fromStr}:`,
-                  res.status,
-                  res.statusText
-                );
-                throw new Error(`HTTP ${res.status}`);
-              }
-              return res.json();
-            })
-          );
-        }
+useEffect(() => {
+  if (!selectedGroup) return;
+  const fetchSummaryData = async () => {
+    try {
+      const today = new Date("2025-10-22"); // تنظیم به 1404/07/30 برای پوشش 1404/07/29
+      const requests = [];
+      const eventsRequests = [];
+      const positionsRequests = [];
 
-        const summaryResults = await Promise.all(requests);
-        console.log("Summary results:", summaryResults);
+      // درخواست‌ها برای 10 روز (2025/10/13 تا 2025/10/22)
+      for (let i = 9; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(today.getDate() - i);
+        const fromDate = new Date(date);
+        fromDate.setHours(0, 0, 0, 0); // شروع روز
+        const toDate = new Date(date);
+        toDate.setHours(23, 59, 59, 999); // پایان روز
+        const fromStr = fromDate.toISOString();
+        const toStr = toDate.toISOString();
 
-        const eventsRequests = [];
-        for (let i = 9; i >= 0; i--) {
-          const date = new Date(today);
-          date.setDate(today.getDate() - i);
-          const fromDate = new Date(date);
-          fromDate.setHours(20, 30, 0, 0); // 8:30 PM UTC
-          const toDate = new Date(date);
-          toDate.setDate(date.getDate() + 1);
-          toDate.setHours(20, 29, 59, 999); // 8:29:59.999 PM UTC next day
-          const fromStr = fromDate.toISOString();
-          const toStr = toDate.toISOString();
-          const url = `/api/reports/events?groupId=${selectedGroup}&from=${fromStr}&to=${toStr}&type=overspeed`;
-          eventsRequests.push(
-            fetch(url, {
-              credentials: "include",
-              headers: {
-                Accept: "application/json",
-              },
-            }).then((res) => {
-              console.log(`Request URL for ${fromStr}:`, url);
+        // درخواست Summary
+        const summaryUrl = `/api/reports/summary?groupId=${selectedGroup}&from=${fromStr}&to=${toStr}`;
+        requests.push(
+          fetch(summaryUrl, {
+            credentials: "include",
+            headers: {
+              Accept: "application/json",
+            },
+          }).then((res) => {
+            if (!res.ok) {
+              return [];
+            }
+            return res.json();
+          }).catch(() => {
+            return [];
+          })
+        );
+
+        // درخواست Events (تغییر به deviceOverspeed)
+        const eventsUrl = `/api/reports/events?groupId=${selectedGroup}&from=${fromStr}&to=${toStr}&type=deviceOverspeed`;
+        console.log(`Events URL for ${fromStr}:`, eventsUrl);
+        eventsRequests.push(
+          fetch(eventsUrl, {
+            credentials: "include",
+            headers: {
+              Accept: "application/json",
+            },
+          }).then((res) => {
+            if (!res.ok) {
+              console.log(`Events fetch failed for ${fromStr}: HTTP ${res.status}`);
+              return [];
+            }
+            return res.json().then((data) => {
+              console.log(`Events data for ${fromStr}:`, data);
               console.log(
-                `Response status for ${fromStr}:`,
-                res.status,
-                res.statusText
+                `DeviceOverspeed values for ${fromStr}:`,
+                data
+                  .filter((event) => event.type === "deviceOverspeed")
+                  .map((event) => event.attributes?.speed || 0)
               );
-              if (!res.ok) {
-                console.error(
-                  `Events fetch failed for ${fromStr}:`,
-                  res.status,
-                  res.statusText
-                );
-              }
-              return res.json().then((data) => {
-                console.log(`Raw Events data for ${fromStr}:`, data);
-                return data;
-              });
-            })
-          );
-        }
+              return data;
+            });
+          }).catch((err) => {
+            console.error(`Events fetch error for ${fromStr}:`, err);
+            return [];
+          })
+        );
 
-        const eventsResults = await Promise.all(eventsRequests);
-        console.log("Raw Events results array:", eventsResults);
-
-        const positionsRequests = [];
-        for (let i = 9; i >= 0; i--) {
-          const date = new Date(today);
-          date.setDate(today.getDate() - i);
-          const fromDate = new Date(date);
-          fromDate.setHours(20, 30, 0, 0); // 8:30 PM UTC
-          const toDate = new Date(date);
-          toDate.setDate(date.getDate() + 1);
-          toDate.setHours(20, 29, 59, 999); // 8:29:59.999 PM UTC next day
-          const fromStr = fromDate.toISOString();
-          const toStr = toDate.toISOString();
-          const url = `/api/positions?groupId=${selectedGroup}&from=${fromStr}&to=${toStr}`;
-          positionsRequests.push(
-            fetch(url, {
-              credentials: "include",
-              headers: {
-                Accept: "application/json",
-              },
-            }).then((res) => {
-              console.log(`Positions request URL for ${fromStr}:`, url);
+        // درخواست Positions (فال‌بک)
+        const positionsUrl = `/api/positions?groupId=${selectedGroup}&from=${fromStr}&to=${toStr}`;
+        positionsRequests.push(
+          fetch(positionsUrl, {
+            credentials: "include",
+            headers: {
+              Accept: "application/json",
+            },
+          }).then((res) => {
+            if (!res.ok) {
+              console.log(`Positions fetch failed for ${fromStr}: HTTP ${res.status}`);
+              return [];
+            }
+            return res.json().then((data) => {
+              console.log(`Positions data for ${fromStr}:`, data);
               console.log(
-                `Positions response status for ${fromStr}:`,
-                res.status,
-                res.statusText
+                `Speeds for ${fromStr}:`,
+                data.map((pos) => pos.speed || 0)
               );
-              if (!res.ok) {
-                console.error(
-                  `Positions fetch failed for ${fromStr}:`,
-                  res.status,
-                  res.statusText
-                );
-              }
-              return res.json().then((data) => {
-                console.log(`Raw Positions data for ${fromStr}:`, data);
-                return data;
-              });
-            })
-          );
-        }
-
-        const positionsResults = await Promise.all(positionsRequests);
-        console.log("Raw Positions results array:", positionsResults);
-
-        const formattedSpeed = [];
-        const formattedDistance = [];
-        const formattedFuel = [];
-        const formattedEngineHours = [];
-        const formattedRiskyBehavior = [];
-
-        summaryResults.forEach((dayReports, i) => {
-          const date = new Date(today);
-          date.setDate(today.getDate() - (9 - i) + 1); // اضافه کردن یک روز برای جابجایی تاریخ
-          const faDate = new Intl.DateTimeFormat("fa-IR", {
-            month: "2-digit",
-            day: "2-digit",
-          }).format(date);
-
-          let avgSpeed = 0;
-          let totalDistance = 0;
-          let totalFuel = 0;
-          let totalEngineHoursMs = 0;
-          let overspeedCount = 0;
-          if (dayReports && dayReports.length > 0) {
-            // فیلتر کردن سرعت‌های غیرمنطقی (بزرگ‌تر از 300)
-            const validSpeeds = dayReports
-              .map((r) => r.averageSpeed || 0)
-              .filter((speed) => speed <= 300);
-            avgSpeed =
-              validSpeeds.length > 0
-                ? validSpeeds.reduce((sum, s) => sum + s, 0) / validSpeeds.length
-                : 0;
-            // فیلتر کردن مسافت‌های غیرمنطقی (بزرگ‌تر از 2000 کیلومتر)
-            const validDistances = dayReports
-              .map((r) => r.distance || 0)
-              .filter((distance) => distance <= 2000000); // 2000 کیلومتر = 2,000,000 متر
-            totalDistance =
-              validDistances.length > 0
-                ? validDistances.reduce((sum, d) => sum + d, 0)
-                : 0;
-            totalFuel = dayReports.reduce(
-              (sum, r) => sum + (r.fuelConsumption || 0),
-              0
-            );
-            totalEngineHoursMs = dayReports.reduce(
-              (sum, r) => sum + (r.engineHours || 0),
-              0
-            );
-          }
-
-          // Count overspeed events
-          const eventsForDay = eventsResults[i] || [];
-          overspeedCount = eventsForDay.filter(
-            (event) => event.type === "overspeed"
-          ).length;
-
-          // Alternative: Check positions for overspeed
-          const positionsForDay = positionsResults[i] || [];
-          const maxSpeedThreshold = 80;
-          const overspeedFromPositions = positionsForDay.filter(
-            (pos) => pos.speed > maxSpeedThreshold
-          ).length;
-
-          formattedSpeed.push({ date: faDate, avgSpeed: avgSpeed.toFixed(2) });
-          formattedDistance.push({
-            date: faDate,
-            distance: (totalDistance / 1000).toFixed(2),
-          });
-          formattedFuel.push({
-            date: faDate,
-            fuelConsumption: totalFuel.toFixed(2),
-          });
-          formattedEngineHours.push({
-            date: faDate,
-            engineHours: totalEngineHoursMs,
-          });
-          formattedRiskyBehavior.push({
-            date: faDate,
-            overspeedCount: overspeedCount || overspeedFromPositions,
-          });
-        });
-
-        console.log("Formatted risky behavior data:", formattedRiskyBehavior);
-        setSpeedData(formattedSpeed);
-        setDistanceData(formattedDistance);
-        setFuelData(formattedFuel);
-        setEngineHoursData(formattedEngineHours);
-        setRiskyBehaviorData(formattedRiskyBehavior);
-      } catch (err) {
-        console.error(
-          "Error fetching summary, events, or positions data:",
-          err
+              return data;
+            });
+          }).catch((err) => {
+            console.error(`Positions fetch error for ${fromStr}:`, err);
+            return [];
+          })
         );
       }
-    };
 
-    fetchSummaryData();
-  }, [selectedGroup]);
+      const [summaryResults, eventsResults, positionsResults] = await Promise.all([
+        Promise.all(requests),
+        Promise.all(eventsRequests),
+        Promise.all(positionsRequests),
+      ]);
+
+      const formattedSpeed = [];
+      const formattedDistance = [];
+      const formattedFuel = [];
+      const formattedEngineHours = [];
+      const formattedRiskyBehavior = [];
+
+      summaryResults.forEach((dayReports, i) => {
+        const date = new Date(today);
+        date.setDate(today.getDate() - (9 - i));
+        const faDate = new Intl.DateTimeFormat("fa-IR", {
+          month: "2-digit",
+          day: "2-digit",
+        }).format(date);
+
+        let avgSpeed = 0;
+        let totalDistance = 0;
+        let totalFuel = 0;
+        let totalEngineHoursMs = 0;
+        let deviceOverspeedCount = 0;
+
+        if (dayReports && dayReports.length > 0) {
+          const validSpeeds = dayReports
+            .map((r) => r.averageSpeed || 0)
+            .filter((speed) => speed <= 300);
+          avgSpeed =
+            validSpeeds.length > 0
+              ? validSpeeds.reduce((sum, s) => sum + s, 0) /
+                validSpeeds.length
+              : 0;
+          const validDistances = dayReports
+            .map((r) => r.distance || 0)
+            .filter((distance) => distance <= 2000000);
+          totalDistance =
+            validDistances.length > 0
+              ? validDistances.reduce((sum, d) => sum + d, 0)
+              : 0;
+          totalFuel = dayReports.reduce(
+            (sum, r) => sum + (r.fuelConsumption || 0),
+            0
+          );
+          totalEngineHoursMs = dayReports.reduce(
+            (sum, r) => sum + (r.engineHours || 0),
+            0
+          );
+        }
+
+        // شمارش رویدادهای deviceOverspeed
+        const eventsForDay = eventsResults[i] || [];
+        deviceOverspeedCount = eventsForDay.filter(
+          (event) => event.type === "deviceOverspeed"
+        ).length;
+
+        // فال‌بک: اگه رویدادها خالی بود، از positions استفاده کن
+        if (deviceOverspeedCount === 0) {
+          const positionsForDay = positionsResults[i] || [];
+          const maxSpeedThreshold = 13.5; // 25 km/h ≈ 13.5 knots
+          deviceOverspeedCount = positionsForDay.filter(
+            (pos) => (pos.speed || 0) > maxSpeedThreshold
+          ).length;
+        }
+
+        formattedSpeed.push({ date: faDate, avgSpeed: avgSpeed.toFixed(2) });
+        formattedDistance.push({
+          date: faDate,
+          distance: (totalDistance / 1000).toFixed(2),
+        });
+        formattedFuel.push({
+          date: faDate,
+          fuelConsumption: totalFuel.toFixed(2),
+        });
+        formattedEngineHours.push({
+          date: faDate,
+          engineHours: totalEngineHoursMs,
+        });
+        formattedRiskyBehavior.push({
+          date: faDate,
+          deviceOverspeedCount: deviceOverspeedCount,
+        });
+      });
+
+      console.log("Formatted risky behavior data:", formattedRiskyBehavior);
+      setSpeedData(formattedSpeed);
+      setDistanceData(formattedDistance);
+      setFuelData(formattedFuel);
+      setEngineHoursData(formattedEngineHours);
+      setRiskyBehaviorData(formattedRiskyBehavior);
+    } catch (err) {
+      console.error("Error fetching data:", err);
+    }
+  };
+
+  fetchSummaryData();
+}, [selectedGroup]);
+
+  // شماره‌گذاری کامپوننت‌ها
+  const components = [
+    {
+      id: 1,
+      name: "SummaryCards",
+      component: (
+        <SummaryCards selectedGroup={selectedGroup} cardStyle={cardStyle} />
+      ),
+    },
+    {
+      id: 2,
+      name: "GeofenceExitsStandaloneChart",
+      component: (
+        <GeofenceExitsStandaloneChart
+          selectedGroup={selectedGroup}
+          cardStyle={cardStyle}
+        />
+      ),
+    },
+    {
+      id: 3,
+      name: "SatelliteGroupChart",
+      component: selectedGroup && (
+        <SatelliteGroupChart
+          selectedGroup={selectedGroup}
+          cardStyle={cardStyle}
+        />
+      ),
+    },
+    {
+      id: 4,
+      name: "SpeedChart",
+      component: <SpeedChart data={speedData} cardStyle={cardStyle} />,
+    },
+    {
+      id: 5,
+      name: "DistanceChart",
+      component: <DistanceChart data={distanceData} cardStyle={cardStyle} />,
+    },
+    {
+      id: 6,
+      name: "TemperatureChart",
+      component: <TemperatureChart cardStyle={cardStyle} />,
+    },
+    {
+      id: 7,
+      name: "FuelConsumptionChart",
+      component: fuelData.length > 0 && (
+        <FuelConsumptionChart data={fuelData} cardStyle={cardStyle} />
+      ),
+    },
+    {
+      id: 8,
+      name: "EngineHoursChart",
+      component: (
+        <EngineHoursChart data={engineHoursData} cardStyle={cardStyle} />
+      ),
+    },
+    {
+      id: 9,
+      name: "RiskyBehaviorChart",
+      component: (
+        <RiskyBehaviorChart data={riskyBehaviorData} cardStyle={cardStyle} />
+      ),
+    },
+  ];
 
   return (
     <PageLayout menu={<ReportsMenu />} breadcrumbs={["داشبورد", "Traccar"]}>
-      <PersianClock />
       <Box
         sx={{
           width: "100%",
@@ -296,17 +333,38 @@ const DashboardPage = () => {
       >
         <Box
           sx={{
-            margin: "50px ",
+            margin: "50px",
             padding: "15px",
             boxShadow: "rgba(0, 0, 0, 0.24) 0px 3px 8px",
-            borderRadius: "10px",
+            borderRadius: "20px",
           }}
         >
           <GroupSelector groups={groups} onSelect={setSelectedGroup} />
-          <SummaryCards selectedGroup={selectedGroup} />
           <div
             style={{
-              height: 500,
+              display: "flex",
+              flexDirection: "row",
+              gap: "5px",
+              padding: "0px 15px",
+              direction: "rtl",
+              fontFamily: "'Vazir', sans-serif",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "row",
+                gap: "15px",
+                height: "auto",
+                width: "100%",
+                boxSizing: "border-box",
+              }}
+            ></div>
+          </div>
+
+          <div
+            style={{
+              height: "75vh",
               display: "flex",
               gap: 15,
               alignItems: "flex-start",
@@ -318,47 +376,61 @@ const DashboardPage = () => {
               style={{
                 display: "grid",
                 gridTemplateColumns: "repeat(3, 1fr)",
-                gridTemplateRows: "repeat(2, auto)",
+                gridTemplateRows: "repeat(3, 1fr)",
                 height: "100%",
                 gap: 15,
                 flex: 2,
+                fontFamily: "IranSans, sans-serif",
               }}
             >
-              <SpeedChart data={speedData} cardStyle={cardStyle} />
-              <DistanceChart data={distanceData} cardStyle={cardStyle} />
-              <TemperatureChart cardStyle={cardStyle} />
-              {fuelData.length > 0 && (
-                <FuelConsumptionChart data={fuelData} cardStyle={cardStyle} />
-              )}
-              <EngineHoursChart data={engineHoursData} cardStyle={cardStyle} />
-              <RiskyBehaviorChart
-                data={riskyBehaviorData}
-                cardStyle={cardStyle}
-              />
+              {components.map((comp) => (
+                <div
+                  key={comp.id}
+                  style={{
+                    display: "grid",
+                    flexDirection: "column",
+                    position: "relative",
+                    height: "100%",
+                    minHeight: "200px",
+                    maxHeight: "300px",
+                    overflow: "hidden",
+                    borderRadius: "8px",
+                    gap: "15px",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  {comp.component || (
+                    <div
+                      style={{
+                        flex: 1,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "#999",
+                      }}
+                    >
+                      بدون داده
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
+
             <div
               style={{
                 width: "500px",
                 height: "100%",
                 background: "#f5f5f5",
                 boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                borderRadius: "8px",
+                display: "flex",
+                flexDirection: "column",
+                flexShrink: 0,
               }}
             >
               <IframeComponent />
             </div>
           </div>
-          <GeofenceExitsStandaloneChart
-            selectedGroup={selectedGroup}
-            cardStyle={cardStyle}
-          />
-          {selectedGroup && (
-            <SatellitesChart
-              groupId={selectedGroup}
-              email="admin6@gmail.com"
-              password="123456"
-              serverUrl="http://193.228.90.160:8082"
-            />
-          )}
         </Box>
       </Box>
     </PageLayout>
